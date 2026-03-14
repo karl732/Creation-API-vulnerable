@@ -1,0 +1,50 @@
+# Inspiré de sqlinjections : même structure de connexion (host 'db', root/root)
+# Usage: docker compose up -d
+# App : http://localhost:8080
+
+version: "3.1"
+services:
+  app:
+    build: .
+    container_name: banking-app
+    ports:
+      - "8080:80"
+    volumes:
+      - ./www:/var/www/html/
+    links:
+      - db
+    environment:
+      DB_HOST: db
+      DB_USER: root
+      DB_PASS: root
+      DB_NAME: bankingtraining
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+
+  db:
+    image: mysql:8.0
+    container_name: banking-db
+    ports:
+      - "3306:3306"
+    command: --default-authentication-plugin=mysql_native_password --secure-file-priv=''
+    environment:
+      MYSQL_DATABASE: bankingtraining
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./www/banktraining.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: always
+
+# Volume persistant : les données MySQL (base bankingtraining, table users_hashed, etc.)
+# sont stockées ici. Pour consulter les données : voir README ou exécuter :
+#   docker compose exec db mysql -uroot -proot bankingtraining -e "SELECT * FROM users_hashed;"
+volumes:
+  mysql_data:
