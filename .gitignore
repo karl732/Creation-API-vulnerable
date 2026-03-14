@@ -1,0 +1,3 @@
+# Fichiers de journalisation (ne pas versionner les logs)
+www/logs/
+*.log
