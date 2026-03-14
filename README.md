@@ -1,6 +1,7 @@
 ## Application PHP volontairement vulnérable
 
-Cette mini-application est destinée **uniquement à des fins de formation** sur les vulnérabilités web (SQL injections, contrôle d'accès, élévation de privilèges, etc.).
+Cette mini-application est destinée **uniquement à des fins de tests** sur les vulnérabilités web (SQL injections, contrôle d'accès, élévation de privilèges, etc.).
+Pour pouvoir déployer et tester en toute sécurité mon application, j'ai d'abord créé une machine virtuelle sur VM Ware Workstation Pro, c'est pourquoi je recommande d'en faire de même.
 
 ### Fichiers principaux
 
