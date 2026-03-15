@@ -183,10 +183,18 @@ Le dossier **`certs/`** contient la clé privée et le certificat X.509 utilisé
 
 HTTPS est activé via **mod_ssl** et un VirtualHost dédié. Les certificats du dossier `certs/` sont montés dans le conteneur en lecture seule.
 
-- **HTTP** : `http://localhost:8080` (port 80 dans le conteneur).
-- **HTTPS** : `https://localhost:8443` (port 443 dans le conteneur).
+- **HTTPS (accès normal)** : `https://localhost:8443` (ou `https://<IP_VM>:8443` depuis un autre poste).
+- **HTTP** : toute requête sur `http://localhost:8080` est **redirigée en 301** vers `https://...:8443`, afin que les identifiants et cookies ne transitent jamais en clair.
 
-Après `docker compose up -d` (et si `certs/server.key` et `certs/server.crt` existent), l’application est accessible en HTTPS sur le port **8443**. Le navigateur affichera un avertissement pour un certificat auto-signé ; accepter l’exception pour continuer.
+Après `docker compose up -d` (et si `certs/server.key` et `certs/server.crt` existent), l’application n’est servie qu’en HTTPS sur le port **8443**. Le navigateur affichera un avertissement pour un certificat auto-signé ; accepter l’exception pour continuer.
+
+**Mesures pour que les identifiants ne soient pas transmis en clair :**
+
+| Mesure | Rôle |
+|--------|------|
+| **Redirection HTTP → HTTPS** | Toute requête en `http://...:8080` est renvoyée vers `https://...:8443`. Les formulaires de connexion ne sont donc soumis qu’en TLS. |
+| **HSTS** | L’en-tête `Strict-Transport-Security` indique au navigateur de n’utiliser que HTTPS pour ce site pendant 1 an, limitant les downgrades accidentels. |
+| **Cookie de session sécurisé** | `session.cookie_secure`, `session.cookie_httponly` et `session.cookie_samesite=Strict` : le cookie de session n’est envoyé que sur HTTPS, pas accessible en JavaScript, et non envoyé sur des requêtes cross-site. |
 
 ### Fichiers attendus
 
