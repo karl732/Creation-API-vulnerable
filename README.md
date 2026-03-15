@@ -175,6 +175,113 @@ Puis en SQL : `SELECT * FROM users_hashed;` ou toute autre requête.
 
 ---
 
+## Certificats pour HTTPS
+
+Le dossier **`certs/`** contient la clé privée et le certificat X.509 utilisés pour activer HTTPS sur le serveur (tests ou déploiement sécurisé).
+
+### Activation d’HTTPS (Apache + SSL)
+
+HTTPS est activé via **mod_ssl** et un VirtualHost dédié. Les certificats du dossier `certs/` sont montés dans le conteneur en lecture seule.
+
+- **HTTP** : `http://localhost:8080` (port 80 dans le conteneur).
+- **HTTPS** : `https://localhost:8443` (port 443 dans le conteneur).
+
+Après `docker compose up -d` (et si `certs/server.key` et `certs/server.crt` existent), l’application est accessible en HTTPS sur le port **8443**. Le navigateur affichera un avertissement pour un certificat auto-signé ; accepter l’exception pour continuer.
+
+### Fichiers attendus
+
+- **`server.key`** : clé privée (à ne jamais partager ni commiter dans git).
+- **`server.crt`** : certificat X.509 (public).
+
+Pour régénérer un certificat auto-signé (depuis la racine du projet) :
+
+```bash
+cd certs
+openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 365 -nodes -subj "/CN=localhost/O=Banking Training/C=FR"
+```
+
+### Vérifier que le certificat est valide et cohérent
+
+**1. Contenu du certificat (dates, sujet, émetteur)**
+
+```bash
+openssl x509 -in certs/server.crt -text -noout
+```
+
+Vérifier : dates « Not Before » / « Not After », sujet (CN=…), signature.
+
+**2. Vérifier que le certificat est bien formé**
+
+```bash
+openssl x509 -in certs/server.crt -noout
+```
+
+Aucune erreur affichée = certificat valide syntaxiquement.
+
+**3. Vérifier que la clé et le certificat correspondent**
+
+```bash
+# Empreinte du modulus du certificat
+openssl x509 -noout -modulus -in certs/server.crt | openssl md5
+
+# Empreinte du modulus de la clé privée
+openssl rsa -noout -modulus -in certs/server.key | openssl md5
+```
+
+Les deux empreintes (MD5) doivent être **identiques**. Si oui, la paire clé/certificat est cohérente.
+
+**4. Tester un serveur HTTPS (une fois HTTPS activé sur Apache/Nginx)**
+
+- **Navigateur** : ouvrir `https://localhost:8443` (ou le port HTTPS configuré). Avec un certificat auto-signé, le navigateur affichera un avertissement ; accepter l’exception pour confirmer que la connexion TLS fonctionne (cadenas affiché après acceptation).
+- **Ligne de commande** (connexion TLS sans vérifier le nom d’hôte, pour test) :
+
+  ```bash
+  openssl s_client -connect localhost:8443 -servername localhost
+  ```
+
+  Vous devez voir la chaîne de certificats et « Verify return code: 0 » (ou un code indiquant que seul le nom/CA pose problème, ce qui est normal pour un auto-signé). `Ctrl+C` pour quitter.
+
+En résumé : si les commandes **1 à 3** ne renvoient pas d’erreur et que les empreintes en **3** sont identiques, le certificat est bien formé et associé à la clé. Le test **4** confirme que le serveur utilise correctement cette paire pour HTTPS.
+
+### Dépannage : « Unable to connect » / errno 111 (connexion refusée)
+
+**Où lancez-vous le navigateur ou la commande ?**
+
+- **Depuis votre PC (Windows)** alors que Docker tourne sur la **VM** : `localhost` désigne votre PC, pas la VM. Aucun service n’écoute sur le port 8443 de votre PC → connexion refusée.
+  - **À faire** : utilisez l’**IP de la VM** (ex. `192.168.x.x` ou celle affichée dans VMware). Ex. : `https://192.168.55.101:8443` (remplacer par l’IP réelle de votre VM).
+  - Vérifiez que le pare-feu de la VM autorise le port **8443** (entrant).
+- **Depuis la VM** (navigateur ou terminal sur la VM) : `https://localhost:8443` est correct. Si ça échoue, passez aux vérifications ci-dessous.
+
+**Vérifications sur la VM (dossier du projet)**
+
+1. **Conteneur en marche et ports mappés**
+   ```bash
+   docker compose ps
+   ```
+   Vous devez voir le port `0.0.0.0:8443->443/tcp` pour le service `app`.
+
+2. **Certificats présents** (obligatoire pour qu’Apache écoute sur 443)
+   ```bash
+   dir certs\server.crt certs\server.key
+   ```
+   Les deux fichiers doivent exister dans le dossier `certs/` à la racine du projet (même niveau que `docker-compose.yml`).
+
+3. **Apache écoute bien sur 443 dans le conteneur**
+   ```bash
+   docker compose exec app bash -c "ss -tlnp | grep 443"
+   ```
+   Vous devez voir une ligne avec `:443`. Si rien n’apparaît, le VirtualHost SSL n’a pas démarré (souvent certificats absents ou erreur au chargement).
+
+4. **Logs Apache (erreurs SSL)**
+   ```bash
+   docker compose logs app
+   ```
+   Ou depuis le conteneur : `docker compose exec app cat /var/log/apache2/error.log`. Chercher des messages du type `SSLCertificateFile` ou `Cannot load SSL certificate`.
+
+**À propos de 172.18.0.3** : cette adresse est l’IP du conteneur **à l’intérieur du réseau Docker**. Elle n’est utilisable que depuis un autre conteneur (ex. `http://172.18.0.3/`). Depuis la VM ou votre PC, il faut utiliser **localhost** (depuis la VM) ou **l’IP de la VM** (depuis le PC), avec les ports mappés **8080** (HTTP) et **8443** (HTTPS).
+
+---
+
 ## Explorer la base sans MySQL Workbench sur la VM
 
 Vous utilisez MySQL Workbench sur votre ordinateur principal ; sur la machine virtuelle, vous pouvez soit vous connecter depuis le PC, soit utiliser la ligne de commande.
