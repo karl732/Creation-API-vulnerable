@@ -1,7 +1,116 @@
-## Application PHP volontairement vulnérable
+# Banking Training — Sécurisation d'une API bancaire vulnérable
 
-Cette mini-application est destinée **uniquement à des fins de tests** sur les vulnérabilités web (SQL injections, contrôle d'accès, élévation de privilèges, etc.).
-Pour pouvoir déployer et tester en toute sécurité mon application, j'ai d'abord créé une machine virtuelle sur VM Ware Workstation Pro, c'est pourquoi je recommande d'en faire de même.
+## Contexte
+
+Projet pédagogique de Master Data Engineering autour d'une mini-application bancaire simplifiée (**BankingTraining**), en PHP / Apache / MySQL.  
+L'objectif est de comprendre les failles web courantes (OWASP Top 10), notamment les injections SQL, le contrôle d'accès et le stockage des secrets, en les implémentant volontairement puis en appliquant les correctifs adaptés.  
+Le déploiement s'effectue via Docker Compose, idéalement dans une machine virtuelle (ex. VMware Workstation Pro), afin d'isoler l'environnement de test.
+
+## Problème
+
+Les applications web, très répandues aujourd'hui, ne sont pas toujours bien protégés. Certaines dû à demauvaises pratiques tels que la concaténation des entrées utilisateur dans du SQL, le stockage des mots de passe en clair ou encore l'exposition du trafic en HTTP sont vulnérables et s'exposent à différents risques :
+
+- le contournement d'authentification par injection SQL,
+- l'accès ou la modification de données d'autres utilisateurs (IDOR, abus de privilèges),
+- l'interception d'identifiants en clair sur le réseau,
+- l'absence de traçabilité en cas d'incident.
+
+Ce projet répond à ce problème en proposant plusieurs versions d'une même application, une version vulnérable exploitable, puis des versions progressivement sécurisées (requêtes préparées, validation des entrées, hachage bcrypt, HTTPS / certificats X.509, journalisation), afin de démontrer concrètement l'effet de chaque correctif.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph Client
+    B[Navigateur]
+  end
+
+  subgraph Docker["Docker Compose"]
+    subgraph App["banking-app"]
+      A[Apache + PHP 8.2]
+      W[www/ — formulaires et logique]
+    end
+    subgraph DB["banking-db"]
+      M[(MySQL 8.0<br/>bankingtraining)]
+    end
+  end
+
+  B -->|HTTP :8080 → redirect| A
+  B -->|HTTPS :8443| A
+  A --> W
+  W -->|mysqli host=db| M
+  Certs[certs/ — clé + certificat] -.->|montage lecture seule| A
+  SQL[banktraining.sql] -.->|init au 1er démarrage| M
+```
+
+| Composant | Rôle |
+|-----------|------|
+| **app** (`banking-app`) | Apache + PHP, sert `www/`, HTTP → HTTPS, cookies sécurisés |
+| **db** (`banking-db`) | MySQL 8.0, base `bankingtraining`, volume `mysql_data` |
+| **certs/** | Paire clé / certificat pour TLS sur le port 8443 |
+| **www/** | Code applicatif (login vulnérable, sécurisé, haché, dashboard, logs) |
+
+## Installation et lancement
+
+### Prérequis
+
+- Docker et Docker Compose installés
+- OpenSSL (pour générer les certificats si besoin)
+- Recommandé : une VM isolée pour héberger le projet
+
+### Étapes
+
+1. **Cloner ou ouvrir le projet**, puis se placer à la racine (dossier contenant `docker-compose.yml`).
+
+2. **Générer les certificats HTTPS** (si `certs/server.key` et `certs/server.crt` sont absents) :
+
+```bash
+cd certs
+openssl req -x509 -newkey rsa:2048 -keyout server.key -out server.crt -days 365 -nodes -subj "/CN=localhost/O=Banking Training/C=FR"
+cd ..
+```
+
+3. **Construire et démarrer les conteneurs** :
+
+```bash
+docker compose up -d --build
+```
+
+4. **Vérifier que les services tournent** :
+
+```bash
+docker compose ps
+```
+
+Les services `app` et `db` doivent être `running` / `healthy`, avec les ports `8080→80` et `8443→443`.
+
+5. **Accéder à l'application** :
+
+| Accès | URL |
+|-------|-----|
+| Depuis la VM | `https://localhost:8443` |
+| Depuis le PC hôte (Docker sur la VM) | `https://<IP_DE_LA_VM>:8443` |
+
+Le navigateur affichera un avertissement pour le certificat auto-signé : accepter l'exception pour continuer.  
+Toute requête HTTP sur le port `8080` est redirigée vers HTTPS sur `8443`.
+
+6. **Arrêter le projet** (optionnel) :
+
+```bash
+docker compose down
+```
+
+Pour supprimer aussi le volume MySQL (réinitialisation complète de la base) : `docker compose down -v`.
+
+### Comptes de test
+
+| Section | Identifiant | Mot de passe |
+|---------|-------------|--------------|
+| Vulnérable / sécurisée | `alice` | `pink` (ou selon `banktraining.sql`) |
+| Hachée | `alice` / `admin` | `pink` / `PULL` |
+
+---
+
 
 ### Fichiers principaux
 
