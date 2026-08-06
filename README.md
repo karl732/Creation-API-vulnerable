@@ -114,6 +114,9 @@ Pour supprimer aussi le volume MySQL (réinitialisation complète de la base) : 
 
 ### Fichiers principaux
 
+- `docker-compose.yml` : orchestration des services Docker (`app` Apache/PHP et `db` MySQL), ports, volumes et variables d'environnement.
+- `Dockerfile` : image PHP 8.2 + Apache (mysqli, SSL, rewrite, headers) et configuration HTTP/HTTPS.
+- `banktraining.sql` : Base de données MySQL pour initialiser les différentes tables contenant les informations sur les utilisateurs et sur les comptes bancaires.
 - `config.php` : connexion non sécurisée à la base MySQL `bankingtraining` (adapter login/mot de passe).
 - `index.php` : formulaire de connexion (identifiant / mot de passe).
 - `login.php` : authentification vulnérable (SQL par concaténation, mots de passe en clair).
